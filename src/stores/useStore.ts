@@ -33,6 +33,7 @@ const defaultProject = (): Project => ({
   width: 1920,
   height: 1080,
   fps: 30,
+  duration: 0,
   format: "16:9",
   tracks: [
     { id: uid(), name: "Video", kind: "video", clips: [] },

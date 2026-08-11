@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Topbar from "@/components/Topbar";
+import AvatarLipSync from "@/components/ai/AvatarLipSync";
 import { useEditor } from "@/stores/useStore";
 import { buildPresentation, generateAvatar, generateScript, searchAudio, searchImages, synthesizeSpeech } from "@/providers";
 

@@ -79,6 +79,7 @@ export interface Project {
   width: number;
   height: number;
   fps: number;
+  duration: number;
   format: "16:9" | "9:16" | "1:1" | "4:5";
   tracks: Track[];
   narration: { text: string; voice?: string; audioUrl?: string };
@@ -124,6 +125,7 @@ export interface VideoPlan {
   objective: string;
   duration: number;
   format: "16:9" | "9:16" | "1:1" | "4:5";
+  language?: string;
   script: ScriptPlan;
   scenes: ScenePlan[];
   narration: AudioPlan;
@@ -135,13 +137,20 @@ export interface VideoPlan {
 }
 
 export interface ScriptPlan { text: string; style: string; provider: string; }
-export interface ScenePlan { id: string; title: string; duration: number; visuals: string[]; }
+export interface ScenePlan {
+  id: string;
+  duration: number;
+  narration: string;
+  visual: { type: "image" | "video" | "slide"; query: string; url?: string };
+  caption?: string;
+  onScreenText?: string;
+}
 export interface AudioPlan { provider: string; voice?: string; url?: string; }
-export interface VisualPlan { type: "image" | "video" | "slide"; query: string; url?: string; }
-export interface MusicPlan { provider: string; url?: string; license?: string; }
+export interface VisualPlan { type: "image" | "video" | "slide"; query: string; url?: string; count?: number; }
+export interface MusicPlan { provider: string; url?: string; license?: string; query?: string; }
 export interface CaptionPlan { enabled: boolean; style: string; }
-export interface AvatarPlan { provider: string; prompt: string; lipSync: boolean; }
-export interface PresentationPlan { slides: number; theme: string; }
+export interface AvatarPlan { enabled?: boolean; provider: string; prompt: string; lipSync: boolean; }
+export interface PresentationPlan { enabled?: boolean; slides: number; theme: string; }
 
 export type ScriptStyle = "educational" | "fast_youtube" | "documentary" | "research" | "explainer" | "news";
 

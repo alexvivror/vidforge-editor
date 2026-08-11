@@ -2,23 +2,43 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Topbar from "@/components/Topbar";
+import ExportDialog from "@/components/export/ExportDialog";
 import { useEditor } from "@/stores/useStore";
+import { useHistory } from "@/stores/history";
+import { useAutoSave } from "@/lib/indexeddb/autosave";
+import { useKeyboardShortcuts } from "@/lib/hotkeys";
 import { applyEffect, recordCanvas } from "@/lib/webcodecs/codecs";
 import { cacheSource, getSource } from "@/lib/canvas/sources";
-import type { Clip } from "@/types";
+import type { Clip, Project } from "@/types";
 
 const EFFECTS = [
   "none", "grayscale", "sepia", "vignette", "blur", "invert", "contrast",
 ];
 
 export default function EditorPage() {
-  const { project, currentTime, setCurrentTime, playing, setPlaying, addClip, updateClip, removeClip, selectedClipId, setSelectedClip, setPanel, activePanel } = useEditor();
+  const { project, setProject, currentTime, setCurrentTime, playing, setPlaying, addClip, updateClip, removeClip, selectedClipId, setSelectedClip, setPanel, activePanel } = useEditor();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [exportState, setExportState] = useState<{ pct: number; url?: string; mime?: string } | null>(null);
   const rafRef = useRef<number>(0);
   const lastTsRef = useRef<number>(0);
+
+  useAutoSave();
+  useKeyboardShortcuts();
+  const { canUndo, canRedo } = useHistory();
+  const { undo, redo, push } = useHistory.getState();
+
+  const doUndo = () => {
+    const prev = undo(project);
+    if (prev) setProject(prev as Partial<Project>);
+  };
+  const doRedo = () => {
+    const next = redo(project);
+    if (next) setProject(next as Partial<Project>);
+  };
+  const mut = (fn: () => void) => { push(project); fn(); };
 
   const totalDuration = Math.max(10, ...project.tracks.flatMap((t) => t.clips.map((c) => c.position + c.duration)));
 
@@ -171,6 +191,8 @@ export default function EditorPage() {
           </div>
 
           <div className="transport">
+            <button className="btn btn-ghost btn-sm" onClick={doUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">↩</button>
+            <button className="btn btn-ghost btn-sm" onClick={doRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">↪</button>
             <button className="btn-play" onClick={() => { setPlaying(!playing); if (currentTime >= totalDuration) setCurrentTime(0); }}>
               {playing ? (
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
@@ -178,12 +200,17 @@ export default function EditorPage() {
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
               )}
             </button>
-            <span style={{ fontSize: 12, color: "var(--text-dim)" }}>{project.width}×{project.height} · {project.fps}fps · {project.format}</span>
+            <span style={{ fontSize: 12, color: "var(--text-dim)" }} className="res-info">{project.width}×{project.height} · {project.fps}fps · {project.format}</span>
             <div className="spacer" style={{ flex: 1 }} />
             <button className="btn btn-ghost btn-sm" onClick={() => setCurrentTime(0)}>⏮</button>
-            <button className="btn btn-primary btn-sm" onClick={exportVideo} disabled={!!exportState && exportState.pct < 100}>
-              {exportState && exportState.pct < 100 ? `Exporting ${Math.round(exportState.pct)}%…` : "Export Video"}
-            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => setExportOpen(true)}>Export</button>
+          </div>
+
+          {/* mobile tool drawer */}
+          <div className="mobile-tools">
+            {["✂️ Cut", "🔲 Crop", "T Text", "🔊 Audio", "✨ Effects", "💬 Captions", "🤖 AI", "⋯ More"].map((t) => (
+              <button key={t} className="mobile-tool" onClick={() => setPanel(t.split(" ")[1].toLowerCase() as any)}>{t}</button>
+            ))}
           </div>
 
           <div className="timeline-wrap">
@@ -237,7 +264,12 @@ export default function EditorPage() {
             }}>▶ Preview Voice (browser)</button>
             <div className="divider" />
             <div className="card-title">Project</div>
-            <button className="btn btn-ghost btn-sm" style={{ width: "100%", marginBottom: 8 }} onClick={() => useEditor.getState().newProject()}>New Project</button>
+            <button className="btn btn-ghost btn-sm" style={{ width: "100%", marginBottom: 8 }} onClick={() => {
+              mut(() => useEditor.getState().newProject());
+            }}>New Project</button>
+            <button className="btn btn-ghost btn-sm" style={{ width: "100%" }} onClick={() => {
+              import("@/lib/indexeddb/db").then((m) => m.idbSaveProject(project)).then(() => alert("Saved to device"));
+            }}>💾 Save to Device</button>
             {exportState?.url && (
               <div className="success-box" style={{ marginTop: 12 }}>
                 <div style={{ marginBottom: 8 }}>✅ Export ready ({exportState.mime})</div>
@@ -247,6 +279,19 @@ export default function EditorPage() {
           </div>
         </aside>
       </div>
+
+      {exportOpen && (
+        <ExportDialog
+          canvas={canvasRef.current}
+          duration={totalDuration}
+          fps={project.fps}
+          onClose={() => setExportOpen(false)}
+          onDone={(blob, mime) => {
+            const url = URL.createObjectURL(blob);
+            setExportState({ pct: 100, url, mime });
+          }}
+        />
+      )}
     </div>
   );
 }

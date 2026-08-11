@@ -4,7 +4,7 @@
 // through the appropriate provider. This is the "machine" the user described:
 // input -> plan -> presentation -> script -> voice -> avatar -> video.
 
-import type { AiTask, ProviderKeys, TaskStatus } from "@/types";
+import type { AiTask, ProviderKeys, TaskStatus, VideoPlan } from "@/types";
 import { buildPresentation, fetchArticle, generateAvatar, generateScript, searchImages, searchMusic, searchSfx, synthesizeSpeech } from "@/providers";
 
 export interface DecisionInput {
@@ -14,13 +14,18 @@ export interface DecisionInput {
 }
 
 export interface DecisionResult {
+  plan: VideoPlan;
   tasks: AiTask[];
   summary: string;
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-function detectIntent(prompt: string): { topic: string; style: string; wantsMusic: boolean; wantsSfx: boolean; wantsAvatar: boolean; wantsVideo: boolean; urls: string[] } {
+function detectIntent(prompt: string): {
+  topic: string; style: string; wantsMusic: boolean; wantsSfx: boolean;
+  wantsAvatar: boolean; wantsVideo: boolean; urls: string[];
+  duration: number; format: "16:9" | "9:16" | "1:1" | "4:5"; language: string;
+} {
   const lower = prompt.toLowerCase();
   const urls = prompt.match(/https?:\/\/[^\s]+/g) || [];
   const topic = prompt
@@ -37,14 +42,27 @@ function detectIntent(prompt: string): { topic: string; style: string; wantsMusi
     : lower.includes("explain") ? "explainer"
     : lower.includes("news") ? "news"
     : "educational";
+  // duration from explicit mentions
+  let duration = 60;
+  const durMatch = lower.match(/(\d+)\s*(?:-|to)?\s*(?:second|sec|s)\b/);
+  if (durMatch) duration = Math.min(900, Math.max(10, parseInt(durMatch[1], 10)));
+  else if (lower.includes("30 sec") || lower.includes("30-second")) duration = 30;
+  else if (lower.includes("90 sec") || lower.includes("90-second")) duration = 90;
+  else if (lower.includes("3 min") || lower.includes("3-minute")) duration = 180;
+  // format from mentions
+  const format: "16:9" | "9:16" | "1:1" | "4:5" =
+    lower.includes("reel") || lower.includes("shorts") || lower.includes("vertical") || lower.includes("9:16") ? "9:16"
+    : lower.includes("square") || lower.includes("1:1") ? "1:1"
+    : lower.includes("portrait") || lower.includes("4:5") ? "4:5"
+    : "16:9";
   return {
-    topic,
-    style,
+    topic, style,
     wantsMusic: lower.includes("music") || lower.includes("soundtrack") || lower.includes("background"),
     wantsSfx: lower.includes("sound effect") || lower.includes("sfx") || lower.includes("whoosh"),
     wantsAvatar: lower.includes("avatar") || lower.includes("presenter") || lower.includes("talking head") || lower.includes("host"),
     wantsVideo: lower.includes("video") || lower.includes("mp4") || lower.includes("export"),
-    urls,
+    urls, duration, format,
+    language: lower.includes("hindi") ? "hi" : lower.includes("spanish") ? "es" : "en",
   };
 }
 
@@ -57,6 +75,21 @@ export async function runDecisionMaker(input: DecisionInput): Promise<DecisionRe
   const intent = detectIntent(prompt);
   const tasks: AiTask[] = [];
   const report = (i: number, t: AiTask) => onProgress?.(t, i, tasks.length);
+
+  // ---- Build the production plan FIRST (reviewable) ----
+  const plan: VideoPlan = {
+    objective: intent.topic,
+    duration: intent.duration,
+    format: intent.format,
+    script: { text: "", style: intent.style, provider: "pending" },
+    scenes: [],
+    narration: { provider: keys.elevenlabs ? "elevenlabs" : keys.nvidiaNim ? "nvidia_nim" : "browser" },
+    visuals: [{ type: "image", query: intent.topic, count: 6 }],
+    music: intent.wantsMusic ? { provider: "deezer", query: intent.topic } : { provider: "none", query: "" },
+    captions: { enabled: true, style: "default" },
+    avatar: intent.wantsAvatar ? { enabled: true, provider: keys.nvidiaNim ? "nvidia_nim" : "css", prompt: intent.topic, lipSync: true } : undefined,
+    presentation: { enabled: true, slides: 6, theme: "dark-gold" },
+  };
 
   // ---- TASK 1: ingest source (article URL / plain prompt) ----
   tasks.push(task("source", "Ingest source"));
@@ -96,6 +129,19 @@ export async function runDecisionMaker(input: DecisionInput): Promise<DecisionRe
     tasks[1].detail = `Script via ${s.provider} (${script.split(/\s+/).length} words)`;
     tasks[1].result = script;
     tasks[1].status = "completed";
+    plan.script = { text: script, style: intent.style, provider: s.provider };
+    // derive scenes from script sentences
+    plan.scenes = script
+      .split(/(?<=[.!?])\s+/)
+      .filter((s) => s.trim().length > 20)
+      .slice(0, 8)
+      .map((sentence, i) => ({
+        id: `scene-${i + 1}`,
+        duration: Math.max(4, Math.round(intent.duration / 8)),
+        narration: sentence.trim(),
+        visual: { type: "image", query: intent.topic },
+        caption: sentence.trim().split(" ").slice(0, 6).join(" "),
+      }));
   } catch (e) {
     tasks[1].status = "failed";
     tasks[1].detail = String(e).slice(0, 120);
@@ -207,6 +253,6 @@ export async function runDecisionMaker(input: DecisionInput): Promise<DecisionRe
     report(idx, tasks[idx]);
   }
 
-  const summary = `Plan complete: ${tasks.filter((t) => t.status === "completed").length}/${tasks.length} tasks succeeded. Topic: "${intent.topic}" (${intent.style}).`;
-  return { tasks, summary };
+  const summary = `Plan complete: ${tasks.filter((t) => t.status === "completed").length}/${tasks.length} tasks succeeded. Topic: "${intent.topic}" (${intent.style}, ${intent.duration}s, ${intent.format}).`;
+  return { plan, tasks, summary };
 }
