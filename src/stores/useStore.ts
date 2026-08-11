@@ -37,6 +37,7 @@ const defaultProject = (): Project => ({
   format: "16:9",
   tracks: [
     { id: uid(), name: "Video", kind: "video", clips: [] },
+    { id: uid(), name: "Text", kind: "text", clips: [] },
     { id: uid(), name: "Audio", kind: "audio", clips: [] },
   ],
   narration: { text: "" },
@@ -52,7 +53,7 @@ interface EditorState {
   currentTime: number;
   playing: boolean;
   selectedClipId: string | null;
-  activePanel: "media" | "ai" | "settings" | null;
+  activePanel: "media" | "ai" | "settings" | "crop" | "rotate" | "flip" | "speed" | "text" | "audio" | "effects" | "captions" | null;
   aiTasks: AiTask[];
   aiRunning: boolean;
   setKeys: (k: Partial<ProviderKeys>) => void;
@@ -63,7 +64,7 @@ interface EditorState {
   setCurrentTime: (t: number) => void;
   setPlaying: (p: boolean) => void;
   setSelectedClip: (id: string | null) => void;
-  setPanel: (p: "media" | "ai" | "settings" | null) => void;
+  setPanel: (p: "media" | "ai" | "settings" | "crop" | "rotate" | "flip" | "speed" | "text" | "audio" | "effects" | "captions" | null) => void;
   setNarration: (text: string) => void;
   setAiTasks: (tasks: AiTask[] | ((prev: AiTask[]) => AiTask[])) => void;
   setAiRunning: (r: boolean) => void;

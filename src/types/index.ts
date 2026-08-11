@@ -69,7 +69,7 @@ export interface Clip {
 export interface Track {
   id: string;
   name: string;
-  kind: "video" | "audio";
+  kind: "video" | "audio" | "text";
   clips: Clip[];
 }
 

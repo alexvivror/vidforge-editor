@@ -50,12 +50,17 @@ export function useKeyboardShortcuts() {
       }
       // Split at playhead (simple: duplicate clip at position)
       if (e.key === "s" || e.key === "S") {
-        const { project, selectedClipId, addClip, currentTime } = useEditor.getState();
-        const clip = (project.tracks.flatMap((t) => t.clips) as { id: string; duration: number; position: number }[])
-          .find((c) => c.id === selectedClipId);
+        const { project, selectedClipId, addClip, updateClip, currentTime } = useEditor.getState();
+        const trackIdx = project.tracks.findIndex((t) => t.clips.some((c) => c.id === selectedClipId));
+        const clip = trackIdx >= 0
+          ? (project.tracks[trackIdx].clips as { id: string; duration: number; position: number; start?: number }[]).find((c) => c.id === selectedClipId)
+          : undefined;
         if (clip) {
-          addClip(0, { ...clip, id: undefined, position: currentTime, duration: clip.duration - (currentTime - clip.position) });
-          useEditor.getState().updateClip(clip.id, { duration: currentTime - clip.position });
+          const local = currentTime - clip.position;
+          if (local > 0.1 && local < clip.duration - 0.1) {
+            addClip(trackIdx, { ...clip, id: undefined, position: currentTime, duration: clip.duration - local, start: (clip.start || 0) + local });
+            updateClip(clip.id, { duration: local });
+          }
         }
         return;
       }
