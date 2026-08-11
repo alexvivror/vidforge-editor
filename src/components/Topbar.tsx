@@ -5,14 +5,13 @@ import { usePathname } from "next/navigation";
 
 const NAV = [
   { href: "/", label: "Projects", icon: "🏠" },
-  { href: "/create", label: "AI Create", icon: "✨" },
   { href: "/editor", label: "Editor", icon: "✂️" },
-  { href: "/studio", label: "AI Studio", icon: "🎛" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
 export default function Topbar() {
   const pathname = usePathname();
+  const isActive = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href));
   return (
     <>
       <header className="topbar">
@@ -23,26 +22,26 @@ export default function Topbar() {
               <path d="M3 8 L3 16" />
             </svg>
           </div>
-          VidForge <span style={{ color: "var(--accent)" }}>AI</span>
+          VidForge
         </div>
         <nav className="nav nav-desktop">
           {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className={`nav-item ${pathname === n.href || (n.href !== "/" && pathname.startsWith(n.href)) ? "active" : ""}`}>
+            <Link key={n.href} href={n.href} className={`nav-item ${isActive(n.href) ? "active" : ""}`}>
               {n.label}
             </Link>
           ))}
         </nav>
         <div className="topbar-spacer" />
         <div className="topbar-actions">
-          <span className="badge">Local-first</span>
+          <span className="badge">100% local</span>
         </div>
       </header>
       {/* mobile bottom nav */}
       <nav className="bottom-nav">
         {NAV.map((n) => (
-          <Link key={n.href} href={n.href} className={`bottom-nav-item ${pathname === n.href || (n.href !== "/" && pathname.startsWith(n.href)) ? "active" : ""}`}>
+          <Link key={n.href} href={n.href} className={`bottom-nav-item ${isActive(n.href) ? "active" : ""}`}>
             <span className="bottom-nav-icon">{n.icon}</span>
-            <span className="bottom-nav-label">{n.label.split(" ")[0]}</span>
+            <span className="bottom-nav-label">{n.label}</span>
           </Link>
         ))}
       </nav>

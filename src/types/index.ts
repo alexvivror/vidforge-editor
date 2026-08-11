@@ -54,6 +54,9 @@ export interface Clip {
   fadeOut: number;
   flipped: boolean;
   effects: string[];   // effect ids
+  fx?: Record<string, number>;  // slider effects (brightness, contrast, ...)
+  transition?: string;  // none | Fade | Crossfade | Slide | Zoom | Wipe
+  crop?: { x: number; y: number; w: number; h: number };
   filters: FilterSettings;
   caption?: string;
   text?: string;       // for text clips
@@ -71,6 +74,15 @@ export interface Track {
   name: string;
   kind: "video" | "audio" | "text";
   clips: Clip[];
+}
+
+export interface AssetMeta {
+  id: string;          // object URL
+  name: string;
+  type: "video" | "image" | "audio";
+  duration: number;
+  thumb?: string;
+  addedAt: number;
 }
 
 export interface Project {

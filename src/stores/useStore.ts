@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AiTask, Clip, Project, ProviderKeys } from "@/types";
+import type { AiTask, AssetMeta, Clip, Project, ProviderKeys } from "@/types";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -53,9 +53,12 @@ interface EditorState {
   currentTime: number;
   playing: boolean;
   selectedClipId: string | null;
-  activePanel: "media" | "ai" | "settings" | "crop" | "rotate" | "flip" | "speed" | "text" | "audio" | "effects" | "captions" | null;
+  activePanel: "media" | "ai" | "settings" | "crop" | "rotate" | "flip" | "speed" | "text" | "audio" | "effects" | "transitions" | "captions" | null;
   aiTasks: AiTask[];
   aiRunning: boolean;
+  assets: AssetMeta[];
+  addAsset: (a: AssetMeta) => void;
+  removeAsset: (id: string) => void;
   setKeys: (k: Partial<ProviderKeys>) => void;
   setProject: (p: Partial<Project>) => void;
   addClip: (trackIdx: number, clip: Partial<Clip>) => void;
@@ -64,11 +67,12 @@ interface EditorState {
   setCurrentTime: (t: number) => void;
   setPlaying: (p: boolean) => void;
   setSelectedClip: (id: string | null) => void;
-  setPanel: (p: "media" | "ai" | "settings" | "crop" | "rotate" | "flip" | "speed" | "text" | "audio" | "effects" | "captions" | null) => void;
+  setPanel: (p: "media" | "ai" | "settings" | "crop" | "rotate" | "flip" | "speed" | "text" | "audio" | "effects" | "transitions" | "captions" | null) => void;
   setNarration: (text: string) => void;
   setAiTasks: (tasks: AiTask[] | ((prev: AiTask[]) => AiTask[])) => void;
   setAiRunning: (r: boolean) => void;
   newProject: () => void;
+  createProject: (settings: Partial<Project>) => void;
 }
 
 export const useEditor = create<EditorState>()(
@@ -120,7 +124,14 @@ export const useEditor = create<EditorState>()(
       setNarration: (text) => set((s) => ({ project: { ...s.project, narration: { ...s.project.narration, text }, updatedAt: Date.now() } })),
       setAiTasks: (tasks) => set((s) => ({ aiTasks: typeof tasks === "function" ? (tasks as (p: AiTask[]) => AiTask[])(s.aiTasks) : tasks })),
       setAiRunning: (r) => set({ aiRunning: r }),
+      assets: [],
+      addAsset: (a) => set((s) => ({ assets: [a, ...s.assets.filter((x) => x.id !== a.id)] })),
+      removeAsset: (id) => set((s) => ({ assets: s.assets.filter((a) => a.id !== id) })),
       newProject: () => set({ project: defaultProject(), currentTime: 0, selectedClipId: null, aiTasks: [] }),
+      createProject: (settings) => set({
+        project: { ...defaultProject(), ...settings, tracks: defaultProject().tracks, updatedAt: Date.now() },
+        currentTime: 0, selectedClipId: null, aiTasks: [],
+      }),
     }),
     { name: "vidforge-editor-v1" }
   )

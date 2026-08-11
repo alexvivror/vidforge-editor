@@ -4,8 +4,10 @@
 import type { Clip } from "@/types";
 import { getSource } from "@/lib/canvas/sources";
 
+export interface RenderOptions { muted?: boolean; volume?: number; }
+
 /** Sync audio clips to the timeline time: play/pause + volume + fades. */
-export function syncAudio(time: number, audioClips: Clip[]): void {
+export function syncAudio(time: number, audioClips: Clip[], opts: RenderOptions = {}): void {
   for (const clip of audioClips) {
     const src = getSource(clip.src || clip.id);
     if (!src || !(src.el instanceof HTMLAudioElement)) continue;
@@ -17,8 +19,8 @@ export function syncAudio(time: number, audioClips: Clip[]): void {
         try { src.el.currentTime = Math.min(target, src.el.duration || target); } catch { /* ignore */ }
       }
       // volume with fades
-      let vol = clip.volume ?? 1;
-      if (clip.muted) vol = 0;
+      let vol = (clip.volume ?? 1) * (opts.volume ?? 1);
+      if (clip.muted || opts.muted) vol = 0;
       if (clip.fadeIn && local < clip.fadeIn) vol *= local / clip.fadeIn;
       if (clip.fadeOut && local > clip.duration - clip.fadeOut) {
         vol *= Math.max(0, (clip.duration - local) / clip.fadeOut);
@@ -37,7 +39,8 @@ export function drawFrame(
   ch: number,
   time: number,
   videoClips: Clip[],
-  textClips: Clip[]
+  textClips: Clip[],
+  opts: RenderOptions = {}
 ): void {
   ctx.clearRect(0, 0, cw, ch);
   // base background
