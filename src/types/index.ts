@@ -172,44 +172,6 @@ export interface AiTask {
   dependsOn?: string[]; // Task IDs this task depends on
 }
 
-export interface SearchResult {
-  id: string;
-  source: 'unsplash' | 'pexels' | 'pixabay' | 'deezer' | 'freesound' | 'musicbrainz';
-  type: 'image' | 'video' | 'audio';
-  url: string;
-  thumbnailUrl: string;
-  title: string;
-  author?: string;
-  license: string;
-  duration?: number; // For audio/video
-  width?: number;
-  height?: number;
-  tags?: string[];
-}
-
-export interface VideoExportConfig {
-  width: number;
-  height: number;
-  fps: number;
-  bitrate: number;
-  codec: 'vp9' | 'h264' | 'av1';
-  container: 'webm' | 'mp4';
-  quality: 'low' | 'medium' | 'high' | 'lossless';
-}
-
-export interface TimelineState {
-  currentTime: number;
-  isPlaying: boolean;
-  duration: number;
-  zoom: number; // Pixels per second
-  scrollX: number;
-  selectedClipIds: string[];
-  playbackRate: number;
-  loopEnabled: boolean;
-  inPoint: number;
-  outPoint: number;
-}
-
 export interface EditorSettings {
   theme: 'dark' | 'light';
   autoSave: boolean;
@@ -220,81 +182,6 @@ export interface EditorSettings {
   showTimecodes: boolean;
   magneticTimeline: boolean;
   rippleEdit: boolean;
-}
-
-export interface AudioNodeConfig {
-  id: string;
-  type: 'gain' | 'biquad' | 'dynamics' | 'delay' | 'reverb' | 'analyser';
-  params: Record<string, number>;
-  connections: string[]; // Node IDs this connects to
-}
-
-export interface VideoFrameData {
-  timestamp: number;
-  width: number;
-  height: number;
-  format: 'rgba' | 'yuv420p' | 'rgb24';
-  data: ArrayBuffer;
-}
-
-export interface WorkerMessage {
-  type: 'INIT' | 'UPDATE_STATE' | 'DECODE_FRAME' | 'RENDER_FRAME' | 'EXPORT_START' | 'EXPORT_PROGRESS' | 'EXPORT_COMPLETE' | 'ERROR';
-  payload: unknown;
-  requestId?: string;
-}
-
-export interface RenderWorkerState {
-  canvas: OffscreenCanvas | null;
-  gl: WebGL2RenderingContext | null;
-  videoDecoder: VideoDecoder | null;
-  frameCache: Map<string, VideoFrame>;
-  currentProject: Project | null;
-  timelineState: TimelineState;
-  isRendering: boolean;
-}
-
-export interface CloudAiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  usage?: {
-    tokens?: number;
-    credits?: number;
-    cost?: number;
-  };
-}
-
-export interface PresentationSlide {
-  id: string;
-  title: string;
-  content: string;
-  layout: 'title' | 'content' | 'two-column' | 'image-text' | 'quote' | 'code';
-  backgroundImage?: string;
-  backgroundColor?: string;
-  notes?: string;
-  duration: number;
-  animations?: SlideAnimation[];
-}
-
-export interface SlideAnimation {
-  elementId: string;
-  type: 'fade' | 'slide' | 'zoom' | 'typewriter';
-  delay: number;
-  duration: number;
-  easing: string;
-}
-
-export interface LipSyncData {
-  phonemes: PhonemeFrame[];
-  duration: number;
-  audioUrl: string;
-}
-
-export interface PhonemeFrame {
-  time: number;
-  phoneme: string;
-  mouthShape: Record<string, number>; // Blendshape weights
-  intensity: number;
 }
 
 export type EditorAction =

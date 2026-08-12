@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AiTask, AssetMeta, Clip, Project, ProviderKeys } from "@/types";
+import type { AiTask, AssetMeta, Clip, Project, ProviderKeys, Track } from "@/types";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -71,6 +71,13 @@ interface EditorState {
   setNarration: (text: string) => void;
   setAiTasks: (tasks: AiTask[] | ((prev: AiTask[]) => AiTask[])) => void;
   setAiRunning: (r: boolean) => void;
+  // track ops (for the AI command API)
+  addTrack: (track: Partial<Track> & { kind: Track["kind"] }) => string;
+  removeTrack: (trackId: string) => void;
+  renameTrack: (trackId: string, name: string) => void;
+  setTrackMuted: (trackId: string, muted: boolean) => void;
+  setTrackLocked: (trackId: string, locked: boolean) => void;
+  setTrackVisible: (trackId: string, visible: boolean) => void;
   newProject: () => void;
   createProject: (settings: Partial<Project>) => void;
 }
@@ -124,6 +131,22 @@ export const useEditor = create<EditorState>()(
       setNarration: (text) => set((s) => ({ project: { ...s.project, narration: { ...s.project.narration, text }, updatedAt: Date.now() } })),
       setAiTasks: (tasks) => set((s) => ({ aiTasks: typeof tasks === "function" ? (tasks as (p: AiTask[]) => AiTask[])(s.aiTasks) : tasks })),
       setAiRunning: (r) => set({ aiRunning: r }),
+      addTrack: (track) => {
+        const id = uid();
+        set((s) => ({
+          project: {
+            ...s.project,
+            tracks: [...s.project.tracks, { id, name: track.name || track.kind, kind: track.kind, clips: [], ...track }],
+            updatedAt: Date.now(),
+          },
+        }));
+        return id;
+      },
+      removeTrack: (trackId) => set((s) => ({ project: { ...s.project, tracks: s.project.tracks.filter((t) => t.id !== trackId), updatedAt: Date.now() } })),
+      renameTrack: (trackId, name) => set((s) => ({ project: { ...s.project, tracks: s.project.tracks.map((t) => (t.id === trackId ? { ...t, name } : t)), updatedAt: Date.now() } })),
+      setTrackMuted: (trackId, muted) => set((s) => ({ project: { ...s.project, tracks: s.project.tracks.map((t) => (t.id === trackId ? { ...t, muted } : t)), updatedAt: Date.now() } })),
+      setTrackLocked: (trackId, locked) => set((s) => ({ project: { ...s.project, tracks: s.project.tracks.map((t) => (t.id === trackId ? { ...t, locked } : t)), updatedAt: Date.now() } })),
+      setTrackVisible: (trackId, visible) => set((s) => ({ project: { ...s.project, tracks: s.project.tracks.map((t) => (t.id === trackId ? { ...t, visible } : t)), updatedAt: Date.now() } })),
       assets: [],
       addAsset: (a) => set((s) => ({ assets: [a, ...s.assets.filter((x) => x.id !== a.id)] })),
       removeAsset: (id) => set((s) => ({ assets: s.assets.filter((a) => a.id !== id) })),

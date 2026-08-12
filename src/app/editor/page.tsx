@@ -20,8 +20,8 @@ import { cacheSource, getSource } from "@/lib/canvas/sources";
 import { generateThumbnail } from "@/lib/canvas/thumbnails";
 import { VoiceRecorder } from "@/lib/audio/recorder";
 import { drawWaveform, generateWaveform } from "@/lib/audio/waveform";
+import { editorApi } from "@/lib/ai/editorApi"; // registers window.vidforge for the AI layer
 import type { Clip, Project } from "@/types";
-
 const TOOLS = [
   { id: "media", label: "Media", icon: "🎞" },
   { id: "text", label: "Text", icon: "T" },
@@ -51,6 +51,10 @@ export default function EditorPage() {
 
   useAutoSave();
   useKeyboardShortcuts();
+  // Ensure the AI command API is registered (window.vidforge) — the AI layer
+  // integrates later by importing this same module, but registering here makes
+  // it available to any runtime AI code (console, injected module, worker).
+  useEffect(() => { void editorApi; }, []);
   const { canUndo, canRedo } = useHistory();
   const { undo, redo, push } = useHistory.getState();
 
