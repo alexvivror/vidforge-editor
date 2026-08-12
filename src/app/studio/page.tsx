@@ -4,6 +4,7 @@ import { useState } from "react";
 import Topbar from "@/components/Topbar";
 import AvatarLipSync from "@/components/ai/AvatarLipSync";
 import { useEditor } from "@/stores/useStore";
+import type { ImageResult } from "@/types";
 import { buildPresentation, generateAvatar, generateScript, searchAudio, searchImages, synthesizeSpeech } from "@/providers";
 
 const TABS = ["Script", "Scenes", "Images", "Voice", "Avatar", "Music", "Captions", "Presentation"] as const;
@@ -14,7 +15,7 @@ export default function StudioPage() {
   const [topic, setTopic] = useState("");
   const [style, setStyle] = useState("educational");
   const [script, setScript] = useState(project.narration.text);
-  const [images, setImages] = useState<{ url: string; alt: string; source: string }[]>([]);
+  const [images, setImages] = useState<ImageResult[]>([]);
   const [music, setMusic] = useState<{ title: string; artist: string; preview?: string; source: string; license?: string }[]>([]);
   const [audioBase64, setAudioBase64] = useState("");
   const [avatarBase64, setAvatarBase64] = useState("");
