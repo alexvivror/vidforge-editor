@@ -25,9 +25,9 @@ export default function PropertiesPanel() {
   if (!clip) {
     return (
       <div className="properties-empty">
-        <div className="big">👆</div>
-        <p>Select an object on the timeline to edit its properties.</p>
-        <p className="sub" style={{ fontSize: 11.5 }}>Import media · drag clips · trim edges · split at playhead</p>
+        <div className="pe-icon">▦</div>
+        <p>Nothing selected</p>
+        <p className="sub" style={{ fontSize: 11.5 }}>Select a clip on the timeline to edit it.</p>
       </div>
     );
   }
@@ -117,8 +117,8 @@ export default function PropertiesPanel() {
         .select.sm { width: 100%; padding: 5px 8px; font-size: 12px; }
         .input.range { width: 100%; accent-color: var(--accent); }
         .prop-title { display: flex; justify-content: space-between; align-items: baseline; padding: 12px; border-bottom: 1px solid var(--border); font-weight: 700; }
-        .properties-empty { padding: 24px 16px; text-align: center; color: var(--text-dim); }
-        .properties-empty .big { font-size: 32px; margin-bottom: 8px; }
+        .properties-empty { padding: 40px 16px; text-align: center; color: var(--text-dim); }
+        .pe-icon { font-size: 26px; margin-bottom: 8px; color: var(--text-dim); opacity: .6; }
       `}</style>
     </div>
   );

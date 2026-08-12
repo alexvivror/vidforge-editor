@@ -22,13 +22,14 @@ import { VoiceRecorder } from "@/lib/audio/recorder";
 import { drawWaveform, generateWaveform } from "@/lib/audio/waveform";
 import { editorApi } from "@/lib/ai/editorApi"; // registers window.vidforge for the AI layer
 import type { Clip, Project } from "@/types";
+
 const TOOLS = [
-  { id: "media", label: "Media", icon: "🎞" },
+  { id: "media", label: "Media", icon: "▦" },
   { id: "text", label: "Text", icon: "T" },
   { id: "audio", label: "Audio", icon: "♪" },
-  { id: "effects", label: "Effects", icon: "✦" },
-  { id: "transitions", label: "Transitions", icon: "⇄" },
-  { id: "captions", label: "Captions", icon: "💬" },
+  { id: "effects", label: "FX", icon: "✦" },
+  { id: "transitions", label: "Transition", icon: "⇄" },
+  { id: "captions", label: "Captions", icon: "ℹ" },
 ] as const;
 
 export default function EditorPage() {
@@ -38,29 +39,26 @@ export default function EditorPage() {
   const audioInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [fit, setFit] = useState<"fit" | "fill">("fit");
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [rec, setRec] = useState<{ recording: boolean; seconds: number }>({ recording: false, seconds: 0 });
-  const [saveState, setSaveState] = useState<"saved" | "saving" | "saved-locally">("saved");
   const [waveforms, setWaveforms] = useState<Record<string, number[]>>({});
   const rafRef = useRef<number>(0);
   const lastTsRef = useRef<number>(0);
   const timeRef = useRef(currentTime);
   const recorderRef = useRef<VoiceRecorder | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   useAutoSave();
   useKeyboardShortcuts();
-  // Ensure the AI command API is registered (window.vidforge) — the AI layer
-  // integrates later by importing this same module, but registering here makes
-  // it available to any runtime AI code (console, injected module, worker).
+  // AI command API registration (window.vidforge) for the future AI layer
   useEffect(() => { void editorApi; }, []);
   const { canUndo, canRedo } = useHistory();
   const { undo, redo, push } = useHistory.getState();
 
   const doUndo = () => { const prev = undo(project); if (prev) setProject(prev as Partial<Project>); };
   const doRedo = () => { const next = redo(project); if (next) setProject(next as Partial<Project>); };
-  const mut = (fn: () => void) => { push(project); fn(); };
+  const mut = (fn: () => void) => { push(project); fn(); setSavedFlash(false); };
 
   const videoClips = project.tracks.filter((t) => t.kind === "video").flatMap((t) => t.clips);
   const textClips = project.tracks.filter((t) => t.kind === "text").flatMap((t) => t.clips);
@@ -128,7 +126,6 @@ export default function EditorPage() {
       };
       const dur = 10;
       addClip(2, { src: url, kind: "audio", name: file.name, duration: dur, position: pos, start: 0, end: dur });
-      // async waveform
       void generateWaveform(url, 180).then((wf) => setWaveforms((w) => ({ ...w, [url]: wf.peaks }))).catch(() => {});
     }
   };
@@ -195,10 +192,8 @@ export default function EditorPage() {
   const sel = project.tracks.flatMap((t) => t.clips).find((c) => c.id === selectedClipId);
   const fmtT = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}.${String(Math.floor((s % 1) * 100)).padStart(2, "0")}`;
 
-  // waveform canvas refs
   const waveformRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
   useEffect(() => {
-    // draw waveforms for visible audio clips
     audioClips.forEach((c) => {
       const peaks = waveforms[c.src || ""];
       const cv = waveformRefs.current[c.id];
@@ -209,6 +204,13 @@ export default function EditorPage() {
     });
   }, [audioClips, waveforms, currentTime, totalDuration]);
 
+  const saveProject = () => {
+    void import("@/lib/indexeddb/db").then((m) => m.idbSaveProject(project)).then(() => {
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1200);
+    });
+  };
+
   return (
     <div className="page">
       <Topbar />
@@ -216,20 +218,32 @@ export default function EditorPage() {
 
         {/* ===== TOP BAR ===== */}
         <div className="editor-topbar">
-          <Link href="/" className="btn btn-ghost btn-sm" aria-label="Back to projects">←</Link>
-          <span className="proj-name">{project.name || "Untitled"}</span>
-          <span className={`save-state ${saveState}`}>
-            {saveState === "saving" ? "Saving…" : saveState === "saved-locally" ? "Saved locally" : "Saved"}
+          <Link href="/" className="btn btn-ghost btn-sm topbar-back" aria-label="Back to projects">←</Link>
+          <input
+            className="proj-name-input"
+            value={project.name || "Untitled"}
+            onChange={(e) => useEditor.getState().setProject({ name: e.target.value })}
+            aria-label="Project name"
+          />
+          <span className={`save-state ${savedFlash ? "flash" : ""}`} title="Saved locally">
+            {savedFlash ? "✓ Saved" : "•••"}
           </span>
+          <div className="topbar-divider" />
+          <div className="topbar-group">
+            <button className="icon-btn" onClick={doUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">↩</button>
+            <button className="icon-btn" onClick={doRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">↪</button>
+          </div>
+          <div className="topbar-divider" />
+          <button className="icon-btn" onClick={saveProject} title="Save (Ctrl+S)">💾</button>
           <div style={{ flex: 1 }} />
-          <button className="btn btn-ghost btn-sm" onClick={doUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">↩</button>
-          <button className="btn btn-ghost btn-sm" onClick={doRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">↪</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Preview"}</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setExportOpen(true)}>Export</button>
+          <span className="kbd-hint" title="Keyboard shortcuts">Space play · S split · Del delete</span>
+          <button className="btn btn-primary btn-sm export-btn" onClick={() => setExportOpen(true)}>
+            <span>Export</span><span className="export-arrow">↗</span>
+          </button>
         </div>
 
         <div className="editor-body">
-          {/* ===== LEFT TOOLBAR + PANEL ===== */}
+          {/* ===== LEFT: TOOLBAR + PANEL ===== */}
           <div className="editor-left">
             <div className="tool-rail">
               {TOOLS.map((t) => (
@@ -264,16 +278,15 @@ export default function EditorPage() {
                   ))}
                 </div>
               )}
-              {!activePanel && <div className="tool-hint">Choose a tool to get started.</div>}
+              {!activePanel && <div className="tool-hint">Select a tool to add media, text, audio or effects.</div>}
             </div>
           </div>
 
-          {/* ===== CENTER: PREVIEW + TIMELINE ===== */}
+          {/* ===== CENTER: PREVIEW + TRANSPORT + TIMELINE ===== */}
           <div className="editor-center">
-            <div className="preview-wrap" style={{ background: dragging ? "rgba(245,197,24,.1)" : "#000" }}>
+            <div className="preview-wrap" style={{ background: dragging ? "rgba(245,197,24,.08)" : "#0a0a0c" }}>
               <canvas ref={canvasRef} width={project.width} height={project.height} className="preview-canvas"
-                style={{ maxWidth: "100%", maxHeight: "100%", aspectRatio: `${project.width}/${project.height}`, objectFit: fit as "fill" }} />
-              {/* empty state overlay */}
+                style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
               {videoClips.length === 0 && (
                 <div className="preview-empty" onClick={() => fileInputRef.current?.click()}>
                   <div className="big">🎬</div>
@@ -281,21 +294,29 @@ export default function EditorPage() {
                   <button className="btn btn-primary btn-sm">Import Media</button>
                 </div>
               )}
-              <div className="preview-time">{fmtT(currentTime)} / {fmtT(totalDuration)}</div>
+              {/* transport overlay buttons */}
+              <div className="preview-center-controls">
+                <button className="big-play" onClick={() => { setPlaying(!playing); if (currentTime >= totalDuration) setCurrentTime(0); }} title="Play / Pause (Space)">
+                  {playing
+                    ? <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+                    : <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
+                </button>
+              </div>
             </div>
 
+            {/* transport bar */}
             <div className="transport">
-              <button className="btn-play" onClick={() => { setPlaying(!playing); if (currentTime >= totalDuration) setCurrentTime(0); }}>
-                {playing ? <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg> : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
+              <button className="btn-ghost icon-btn" onClick={() => setCurrentTime(Math.max(0, currentTime - 1 / project.fps))} title="Previous frame">⏮</button>
+              <button className="btn-play sm" onClick={() => { setPlaying(!playing); if (currentTime >= totalDuration) setCurrentTime(0); }} title="Play / Pause (Space)">
+                {playing ? "❚❚" : "▶"}
               </button>
-              <button className="btn btn-ghost btn-sm" title="Previous frame" onClick={() => setCurrentTime(Math.max(0, currentTime - 1 / project.fps))}>⏪</button>
-              <button className="btn btn-ghost btn-sm" title="Next frame" onClick={() => setCurrentTime(Math.min(totalDuration, currentTime + 1 / project.fps))}>⏩</button>
-              <div style={{ flex: 1 }} />
-              <button className="btn btn-ghost btn-sm" title={muted ? "Unmute" : "Mute"} onClick={() => setMuted(!muted)}>{muted ? "🔇" : "🔊"}</button>
-              <input className="vol-slider" type="range" min={0} max={1} step={0.05} value={volume} onChange={(e) => setVolume(+e.target.value)} title="Volume" />
-              <button className="btn btn-ghost btn-sm" title="Fit / Fill" onClick={() => setFit(fit === "fit" ? "fill" : "fit")}>{fit === "fit" ? "⛶" : "⿻"}</button>
-              <button className="btn btn-ghost btn-sm" title="Fullscreen" onClick={() => document.querySelector(".preview-wrap")?.requestFullscreen?.()}>⛶</button>
-              <button className="btn btn-ghost btn-sm" title="Split at playhead (S)" onClick={splitAtPlayhead}>✂</button>
+              <button className="btn-ghost icon-btn" onClick={() => setCurrentTime(Math.min(totalDuration, currentTime + 1 / project.fps))} title="Next frame">⏭</button>
+              <span className="timecode-display">{fmtT(currentTime)}<span className="tc-total"> / {fmtT(totalDuration)}</span></span>
+              <div className="spacer" style={{ flex: 1 }} />
+              <button className="icon-btn" onClick={splitAtPlayhead} title="Split at playhead (S)">✂</button>
+              <button className={`icon-btn ${muted ? "off" : ""}`} onClick={() => setMuted(!muted)} title="Mute">{muted ? "🔇" : "🔊"}</button>
+              <input className="vol-slider" type="range" min={0} max={1} step={0.05} value={volume} onChange={(e) => setVolume(+e.target.value)} title="Volume" aria-label="Volume" />
+              <button className="icon-btn" onClick={() => document.querySelector(".preview-wrap")?.requestFullscreen?.()} title="Fullscreen">⛶</button>
             </div>
 
             <div className="timeline-wrap">
@@ -323,7 +344,7 @@ export default function EditorPage() {
         {/* mobile tool drawer */}
         <div className="mobile-tools">
           {TOOLS.map((t) => (
-            <button key={t.id} className={`mobile-tool ${activePanel === t.id ? "active" : ""}`} onClick={() => { if (t.id === "text") { setPanel("text"); } else { setPanel(activePanel === t.id ? null : (t.id as any)); } }}>
+            <button key={t.id} className={`mobile-tool ${activePanel === t.id ? "active" : ""}`} onClick={() => { setPanel(activePanel === t.id ? null : (t.id as any)); }}>
               <span>{t.icon}</span>{t.label}
             </button>
           ))}
@@ -339,46 +360,70 @@ export default function EditorPage() {
       )}
 
       <style>{`
-        .editor-shell { display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h)); }
-        .editor-topbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
-        .proj-name { font-weight: 700; font-size: 13.5px; }
-        .save-state { font-size: 10.5px; color: var(--text-dim); }
-        .save-state.saving { color: var(--accent); }
-        .editor-body { display: grid; grid-template-columns: 168px 1fr 250px; flex: 1; min-height: 0; }
-        .editor-left { display: flex; border-right: 1px solid var(--border); min-width: 0; }
-        .tool-rail { width: 52px; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 6px 0; background: var(--bg-soft); }
-        .rail-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 9.5px; font-weight: 600; border-left: 2px solid transparent; }
-        .rail-btn:hover { color: var(--text); }
+        .editor-shell { display: flex; flex-direction: column; height: calc(100vh - var(--topbar-h)); background: var(--bg); }
+        .editor-topbar { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg); }
+        .topbar-back { text-decoration: none; }
+        .proj-name-input { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; font-size: 13.5px; font-weight: 600; color: var(--text); min-width: 120px; max-width: 260px; }
+        .proj-name-input:hover { border-color: var(--border); }
+        .proj-name-input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+        .save-state { font-size: 10.5px; color: var(--text-dim); min-width: 14px; transition: color .2s; }
+        .save-state.flash { color: var(--success); }
+        .topbar-divider { width: 1px; height: 20px; background: var(--border); }
+        .topbar-group { display: flex; gap: 2px; }
+        .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 7px; border: 1px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 13px; transition: background .12s, color .12s; }
+        .icon-btn:hover { background: var(--surface); color: var(--text); }
+        .icon-btn:disabled { opacity: .3; cursor: default; }
+        .icon-btn.off { opacity: .5; }
+        .kbd-hint { font-size: 10.5px; color: var(--text-dim); }
+        .export-btn { margin-left: 6px; }
+        .export-arrow { opacity: .6; font-size: 12px; }
+
+        .editor-body { display: grid; grid-template-columns: 190px 1fr 252px; flex: 1; min-height: 0; }
+        .editor-left { display: flex; border-right: 1px solid var(--border); min-width: 0; background: var(--bg); }
+        .tool-rail { width: 46px; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 6px 0; background: var(--bg-soft); }
+        .rail-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 2px; background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 9px; font-weight: 600; border-left: 2px solid transparent; }
+        .rail-btn:hover { color: var(--text); background: var(--surface); }
         .rail-btn.active { color: var(--accent); border-left-color: var(--accent); background: var(--surface); }
-        .rail-icon { font-size: 16px; line-height: 1; }
-        .tool-content { flex: 1; overflow-y: auto; padding: 12px; min-width: 0; }
-        .tool-hint { color: var(--text-dim); font-size: 12px; }
+        .rail-icon { font-size: 15px; line-height: 1; }
+        .tool-content { flex: 1; overflow-y: auto; padding: 14px 12px; min-width: 0; }
+        .tool-hint { color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+
         .editor-center { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-        .preview-wrap { flex: 1; display: grid; place-items: center; position: relative; min-height: 0; background: #000; }
+        .preview-wrap { flex: 1; display: grid; place-items: center; position: relative; min-height: 0; background: #0a0a0c; }
         .preview-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; color: var(--text-dim); }
-        .preview-empty .big { font-size: 40px; }
-        .preview-time { position: absolute; bottom: 8px; right: 10px; background: rgba(0,0,0,.65); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; }
-        .transport { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--border); background: var(--bg-soft); }
-        .vol-slider { width: 70px; accent-color: var(--accent); }
-        .timeline-wrap { border-top: 1px solid var(--border); padding: 8px 10px; background: var(--bg-soft); min-width: 0; overflow: hidden; }
+        .preview-empty .big { font-size: 42px; opacity: .8; }
+        .preview-center-controls { position: absolute; bottom: 14px; left: 14px; }
+        .big-play { width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.55); backdrop-filter: blur(4px); color: #fff; display: grid; place-items: center; cursor: pointer; transition: background .15s, transform .1s; }
+        .big-play:hover { background: rgba(245,197,24,.85); color: #000; transform: scale(1.05); }
+
+        .transport { display: flex; align-items: center; gap: 4px; padding: 6px 12px; border-top: 1px solid var(--border); background: var(--bg-soft); }
+        .btn-play.sm { background: var(--accent); color: #000; border: none; border-radius: 7px; width: 30px; height: 30px; font-weight: 800; cursor: pointer; font-size: 11px; }
+        .timecode-display { font-family: var(--font-mono, monospace); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text); margin-left: 6px; }
+        .tc-total { color: var(--text-dim); }
+        .vol-slider { width: 64px; accent-color: var(--accent); }
+
+        .timeline-wrap { border-top: 1px solid var(--border); padding: 8px 12px 10px; background: var(--bg-soft); min-width: 0; overflow: hidden; }
         .timeline-wrap .timeline-scroll { overflow-x: auto; }
-        .editor-right { border-left: 1px solid var(--border); overflow-y: auto; min-width: 0; }
+        .editor-right { border-left: 1px solid var(--border); overflow-y: auto; min-width: 0; background: var(--bg); }
         .audio-cell { padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
         .audio-cell.selected { border-color: var(--accent); }
 
-        /* mobile: separate layout */
+        @media (min-width: 768px) and (max-width: 1023px) {
+          .editor-body { grid-template-columns: 46px 1fr; }
+          .editor-right { display: none; }
+          .tool-content { display: none; }
+          .kbd-hint { display: none; }
+        }
+
         @media (max-width: 767px) {
           .editor-shell { height: calc(100vh - var(--topbar-h) - 56px); }
           .editor-body { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
           .editor-left { display: none; }
           .editor-right { display: none; }
-          .tool-content { display: none; }
-          .timeline-wrap { overflow-x: auto; }
-        }
-        @media (min-width: 768px) and (max-width: 1023px) {
-          .editor-body { grid-template-columns: 52px 1fr; }
-          .editor-right { display: none; }
-          .tool-content { display: none; }
+          .kbd-hint, .topbar-divider, .topbar-group { display: none; }
+          .timeline-wrap .timeline-scroll { overflow-x: auto; }
+          .timecode-display { font-size: 11px; }
+          .proj-name-input { max-width: 130px; }
         }
       `}</style>
     </div>
